@@ -1,8 +1,15 @@
 // Lapisan penyimpanan lokal. Semua data tinggal di browser, tanpa server.
+// Key produk: "oasisbahari:products:v1" (array destinasi).
 
-import { DEFAULT_UI_STATE, STORAGE_KEYS, getSeedProducts } from './products.js';
+import {
+  DEFAULT_UI_STATE,
+  STORAGE_KEYS,
+  getSeedProducts,
+  validateProducts,
+} from './products.js';
 
 const memoryFallback = new Map();
+let loadNotice = '';
 
 function readRaw(key) {
   try {
@@ -37,20 +44,39 @@ function writeJSON(key, value) {
   return writeRaw(key, JSON.stringify(value));
 }
 
-function ensureSeed() {
-  const raw = readRaw(STORAGE_KEYS.destinations);
-  if (raw !== null) {
-    try {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-    } catch {
-      // Fall through ke data contoh.
-    }
-  }
-
+function restoreSeed(message) {
   const seed = getSeedProducts();
   writeJSON(STORAGE_KEYS.destinations, seed);
+  if (message) loadNotice = message;
   return seed;
+}
+
+function ensureSeed() {
+  const raw = readRaw(STORAGE_KEYS.destinations);
+
+  // Key belum ada: pertama kali aplikasi dibuka.
+  if (raw === null) return restoreSeed('');
+
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return restoreSeed('Data destinasi rusak (JSON tidak valid). Data contoh dipulihkan otomatis.');
+  }
+
+  const checked = validateProducts(parsed);
+  if (checked.valid) return checked.products;
+
+  return restoreSeed(
+    `Data destinasi tidak valid (${checked.errors.length} masalah). Data contoh dipulihkan otomatis.`,
+  );
+}
+
+/** Diambil sekali oleh main.js setelah pemanggilan getProducts() pertama. */
+export function consumeLoadNotice() {
+  const notice = loadNotice;
+  loadNotice = '';
+  return notice;
 }
 
 export function getProducts() {
@@ -59,6 +85,20 @@ export function getProducts() {
 
 export function saveProducts(products) {
   return writeJSON(STORAGE_KEYS.destinations, products);
+}
+
+export function upsertProduct(product) {
+  const products = getProducts();
+  const index = products.findIndex((entry) => entry.id === product.id);
+  const next = index === -1
+    ? [...products, product]
+    : products.map((entry, position) => (position === index ? product : entry));
+  return writeJSON(STORAGE_KEYS.destinations, next) ? next : null;
+}
+
+export function deleteProduct(id) {
+  const next = getProducts().filter((product) => product.id !== id);
+  return writeJSON(STORAGE_KEYS.destinations, next) ? next : null;
 }
 
 export function getProductById(id) {
@@ -131,4 +171,5 @@ export function resetAll() {
   writeJSON(STORAGE_KEYS.wishlist, []);
   writeJSON(STORAGE_KEYS.checklist, {});
   writeJSON(STORAGE_KEYS.ui, DEFAULT_UI_STATE);
+  loadNotice = '';
 }

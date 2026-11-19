@@ -6,10 +6,20 @@ import './style.css';
 import {
   APP_NAME,
   DEFAULT_UI_STATE,
+  JENIS_OBJEK,
   KATEGORI_BAHARI,
+  LEVEL_KEAHLIAN,
   SORT_OPTIONS,
+  STORAGE_KEYS,
+  STATUS_AKSES,
+  STATUS_POPULARITAS,
+  WILAYAH_PULAU,
+  createProductId,
   filterProducts,
   getSummary,
+  normalizeProductInput,
+  validateProduct,
+  validateProducts,
 } from './products.js';
 import * as store from './store.js';
 import {
@@ -25,7 +35,54 @@ import {
 const root = document.querySelector('#app');
 const shell = createShell(root, APP_NAME);
 
+// getProducts() memicu validasi localStorage. Ambil notifikasi pemulihannya sekali.
+const bootProducts = store.getProducts();
+let storageNotice = store.consumeLoadNotice();
+store.removeMissingWishlistItems(bootProducts);
+
 let uiState = readStateFromUrl();
+let productForm = emptyProductForm();
+
+function emptyProductForm() {
+  return {
+    id: '',
+    values: {
+      nama: '',
+      provinsi: '',
+      wilayahPulau: WILAYAH_PULAU[0],
+      jenisObjek: JENIS_OBJEK[0],
+      kategori: KATEGORI_BAHARI[0],
+      statusAkses: STATUS_AKSES[0],
+      statusPopularitas: STATUS_POPULARITAS[0],
+      levelKeahlian: LEVEL_KEAHLIAN[0],
+      estimasiBiaya: '',
+      kuota: '',
+      deskripsi: '',
+      infoAkses: '',
+      waktuTerbaik: '',
+      catatanLokal: '',
+      checklistBawaan: '',
+      latitude: '',
+      longitude: '',
+      imageUrl: '',
+      unggulan: false,
+    },
+    errors: {},
+  };
+}
+
+function productToFormValues(product) {
+  return {
+    ...emptyProductForm().values,
+    ...product,
+    estimasiBiaya: String(product.estimasiBiaya),
+    kuota: String(product.kuota),
+    latitude: String(product.latitude),
+    longitude: String(product.longitude),
+    checklistBawaan: (product.checklistBawaan || []).join('\n'),
+    unggulan: Boolean(product.unggulan),
+  };
+}
 
 function readStateFromUrl() {
   const params = new URLSearchParams(location.search);
@@ -51,11 +108,16 @@ function syncUrl() {
 }
 
 function currentRoute() {
-  return location.hash.replace(/^#\/?/, '') || 'home';
+  return location.hash.replace(/^\#\/?/, '') || 'home';
 }
 
 function updateBadge() {
   shell.badge.textContent = String(store.getWishlist().length);
+}
+
+function focusProductForm() {
+  document.getElementById('product-form')?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+  document.getElementById('form-nama')?.focus?.();
 }
 
 function openProduct(product, trigger) {
@@ -93,9 +155,158 @@ const handlers = {
     showToast(shell.toastHost, saved ? 'Destinasi disimpan ke wishlist.' : 'Destinasi dihapus dari wishlist.', saved ? 'success' : 'info');
   },
 
+  onStartAdd() {
+    productForm = emptyProductForm();
+    render();
+    focusProductForm();
+  },
+
+  onEditProduct(id) {
+    const product = store.getProductById(id);
+    if (!product) return;
+    productForm = { id: product.id, values: productToFormValues(product), errors: {} };
+    render();
+    focusProductForm();
+  },
+
+  onCancelEdit() {
+    productForm = emptyProductForm();
+    render();
+  },
+
+  onFormChange(name, value) {
+    productForm.values[name] = value;
+    if (!productForm.errors[name]) return;
+
+    delete productForm.errors[name];
+    const errorNode = document.querySelector(`[data-error-for="${name}"]`);
+    if (errorNode) errorNode.textContent = '';
+    errorNode?.closest('.field')?.classList.remove('has-error');
+  },
+
+  onFormSubmit(event) {
+    event.preventDefault();
+
+    const products = store.getProducts();
+    const wasEdit = Boolean(productForm.id);
+    const id = productForm.id || createProductId(products);
+    const normalized = normalizeProductInput({ ...productForm.values, id });
+    const errors = validateProduct(normalized);
+
+    if (errors.length > 0) {
+      productForm.errors = errors.reduce((acc, error) => {
+        if (error.field) acc[error.field] = error.message;
+        return acc;
+      }, {});
+      render();
+      showToast(shell.toastHost, `Validasi gagal: ${errors[0].message}`, 'error', 6000);
+      return;
+    }
+
+    const nextProducts = store.upsertProduct(normalized);
+    if (!nextProducts) {
+      showToast(shell.toastHost, 'Gagal menyimpan ke localStorage. Perubahan belum diterapkan.', 'error', 6000);
+      return;
+    }
+
+    productForm = emptyProductForm();
+    store.removeMissingWishlistItems(nextProducts);
+    render();
+    showToast(shell.toastHost, wasEdit ? 'Perubahan destinasi tersimpan.' : 'Destinasi baru tersimpan.', 'success');
+  },
+
+  onDeleteProduct(id) {
+    const product = store.getProductById(id);
+    if (!product) return;
+    if (!window.confirm(`Hapus destinasi "${product.nama}"? Tindakan ini tidak dapat dibatalkan.`)) return;
+
+    const nextProducts = store.deleteProduct(id);
+    if (!nextProducts) {
+      showToast(shell.toastHost, 'Gagal menyimpan ke localStorage. Destinasi belum dihapus.', 'error', 6000);
+      return;
+    }
+
+    if (productForm.id === id) productForm = emptyProductForm();
+    store.removeMissingWishlistItems(nextProducts);
+    render();
+    showToast(shell.toastHost, `Destinasi "${product.nama}" dihapus.`, 'info');
+  },
+
+  onToggleFeatured(id) {
+    const product = store.getProductById(id);
+    if (!product) return;
+
+    const updated = { ...product, unggulan: !product.unggulan };
+    const nextProducts = store.upsertProduct(updated);
+    if (!nextProducts) {
+      showToast(shell.toastHost, 'Gagal menyimpan ke localStorage.', 'error', 6000);
+      return;
+    }
+
+    if (productForm.id === id) productForm.values.unggulan = updated.unggulan;
+    render();
+    showToast(shell.toastHost, `${updated.nama} ${updated.unggulan ? 'ditandai unggulan.' : 'dihapus dari unggulan.'}`, 'info');
+  },
+
+  onExportProducts() {
+    const payload = JSON.stringify(store.getProducts(), null, 2);
+    const blob = new Blob([payload], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'oasisbahari-products-v1.json';
+    document.body.append(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 0);
+    showToast(shell.toastHost, 'Export JSON siap diunduh.', 'success');
+  },
+
+  async onImportProducts(file) {
+    try {
+      const text = await file.text();
+      let parsed;
+      try {
+        parsed = JSON.parse(text);
+      } catch {
+        showToast(shell.toastHost, 'Import ditolak: berkas bukan JSON valid.', 'error', 6000);
+        return;
+      }
+
+      const checked = validateProducts(parsed);
+      if (!checked.valid) {
+        const first = checked.errors[0];
+        showToast(
+          shell.toastHost,
+          `Import ditolak (${checked.errors.length} masalah): ${first.field} — ${first.message}`,
+          'error',
+          8000,
+        );
+        return;
+      }
+
+      const saved = store.saveProducts(checked.products);
+      if (!saved) {
+        showToast(shell.toastHost, 'Gagal menyimpan hasil import ke localStorage.', 'error', 6000);
+        return;
+      }
+
+      store.removeMissingWishlistItems(checked.products);
+      productForm = emptyProductForm();
+      render();
+      showToast(shell.toastHost, `Import berhasil: ${checked.products.length} destinasi.`, 'success');
+    } catch {
+      showToast(shell.toastHost, 'Gagal membaca berkas JSON.', 'error', 6000);
+    }
+  },
+
   onResetAll() {
+    if (!window.confirm('Reset seluruh data demo ke 8 destinasi contoh? Wishlist dan checklist juga dikosongkan.')) return;
+
     store.resetAll();
     uiState = { ...DEFAULT_UI_STATE };
+    productForm = emptyProductForm();
+    storageNotice = '';
     syncUrl();
     render();
     showToast(shell.toastHost, 'Data lokal dikembalikan ke 8 destinasi contoh.', 'success');
@@ -113,6 +324,7 @@ function renderHomePage() {
     summary: getSummary(products),
     wishlistIds,
     handlers,
+    storageNotice,
   });
 }
 
@@ -136,7 +348,13 @@ function render() {
   else if (route === 'about') renderAboutPage(shell.main, { appName: APP_NAME });
   else if (route === 'dashboard') {
     const products = store.getProducts();
-    renderDashboardPage(shell.main, { products, summary: getSummary(products), handlers });
+    renderDashboardPage(shell.main, {
+      products,
+      summary: getSummary(products),
+      handlers,
+      form: productForm,
+      notice: storageNotice,
+    });
   } else renderHomePage();
 
   if (activeId) {
@@ -156,6 +374,17 @@ window.addEventListener('popstate', () => {
   render();
 });
 
-store.removeMissingWishlistItems(store.getProducts());
+// Sinkron lintas tab: perubahan produk di dashboard langsung memperbarui
+// katalog dan marker peta di tab lain yang sedang terbuka.
+window.addEventListener('storage', (event) => {
+  if (event.key !== STORAGE_KEYS.destinations) return;
+  const nextProducts = store.getProducts();
+  store.removeMissingWishlistItems(nextProducts);
+  productForm = emptyProductForm();
+  render();
+  showToast(shell.toastHost, 'Katalog dan peta disinkronkan dengan perubahan data di tab lain.', 'info');
+});
+
 syncUrl();
 render();
+if (storageNotice) showToast(shell.toastHost, storageNotice, 'warning', 9000);

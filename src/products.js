@@ -3,9 +3,10 @@
 
 export const APP_NAME = 'OasisBahari';
 
-// Versi dinaikkan agar data lama tanpa kategori/biaya/status tidak dipakai ulang.
+// Key produk mengikuti kontrak migrasi yang diminta: array destinasi disimpan
+// di bawah satu key ini. Key pendukung tetap memakai suffix versi sendiri.
 export const STORAGE_KEYS = {
-  destinations: 'oasisbahari.destinations.v2',
+  destinations: 'oasisbahari:products:v1',
   wishlist: 'oasisbahari.wishlist.v2',
   checklist: 'oasisbahari.checklist.v2',
   ui: 'oasisbahari.ui.v2',
@@ -53,6 +54,7 @@ const SEED_PRODUCTS = [
     jenisObjek: 'Taman Laut',
     kategori: 'Diving',
     estimasiBiaya: 1250000,
+    kuota: 18,
     statusAkses: 'Tersedia',
     statusPopularitas: 'Populer',
     levelKeahlian: 'Menengah',
@@ -74,6 +76,7 @@ const SEED_PRODUCTS = [
     jenisObjek: 'Pulau',
     kategori: 'Pulau',
     estimasiBiaya: 4850000,
+    kuota: 6,
     statusAkses: 'Kuota Terbatas',
     statusPopularitas: 'Populer',
     levelKeahlian: 'Mahir',
@@ -95,6 +98,7 @@ const SEED_PRODUCTS = [
     jenisObjek: 'Spot Diving',
     kategori: 'Diving',
     estimasiBiaya: 2750000,
+    kuota: 12,
     statusAkses: 'Tersedia',
     statusPopularitas: 'Populer',
     levelKeahlian: 'Menengah',
@@ -116,6 +120,7 @@ const SEED_PRODUCTS = [
     jenisObjek: 'Pantai',
     kategori: 'Pantai',
     estimasiBiaya: 450000,
+    kuota: 20,
     statusAkses: 'Tersedia',
     statusPopularitas: 'Populer',
     levelKeahlian: 'Pemula',
@@ -137,6 +142,7 @@ const SEED_PRODUCTS = [
     jenisObjek: 'Pulau',
     kategori: 'Pulau',
     estimasiBiaya: 350000,
+    kuota: 0,
     statusAkses: 'Penuh',
     statusPopularitas: 'Populer',
     levelKeahlian: 'Pemula',
@@ -158,6 +164,7 @@ const SEED_PRODUCTS = [
     jenisObjek: 'Spot Snorkeling',
     kategori: 'Snorkeling',
     estimasiBiaya: 650000,
+    kuota: 15,
     statusAkses: 'Tersedia',
     statusPopularitas: 'Hidden Gem',
     levelKeahlian: 'Pemula',
@@ -179,6 +186,7 @@ const SEED_PRODUCTS = [
     jenisObjek: 'Pulau',
     kategori: 'Pulau',
     estimasiBiaya: 1950000,
+    kuota: 0,
     statusAkses: 'Tidak Tersedia',
     statusPopularitas: 'Hidden Gem',
     levelKeahlian: 'Menengah',
@@ -200,6 +208,7 @@ const SEED_PRODUCTS = [
     jenisObjek: 'Teluk',
     kategori: 'Pantai',
     estimasiBiaya: 275000,
+    kuota: 4,
     statusAkses: 'Kuota Terbatas',
     statusPopularitas: 'Hidden Gem',
     levelKeahlian: 'Pemula',
@@ -220,6 +229,166 @@ export function getSeedProducts() {
     ...product,
     checklistBawaan: [...product.checklistBawaan],
   }));
+}
+
+// ---------- Validasi & normalisasi data destinasi ----------
+// Validator ini dipakai tiga tempat: load localStorage, form CRUD, dan import JSON.
+// Fungsi di bagian ini murni: tidak membaca DOM/network/storage.
+
+function isPlainObject(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function isText(value, min, max) {
+  return typeof value === 'string' && value.trim().length >= min && value.trim().length <= max;
+}
+
+function isEnum(value, options) {
+  return typeof value === 'string' && options.includes(value);
+}
+
+function isLocalImagePath(value) {
+  if (typeof value !== 'string') return false;
+  if (value === '') return true;
+  return /^(?:\.\/|\/)?[\w./-]+$/.test(value) && !value.includes('..') && !value.includes('://');
+}
+
+/**
+ * Mengembalikan daftar error `{ field, message }`.
+ * Array kosong berarti valid. Tidak ada mutasi pada input.
+ */
+export function validateProduct(product) {
+  const errors = [];
+  const add = (field, message) => errors.push({ field, message });
+
+  if (!isPlainObject(product)) {
+    return [{ field: '', message: 'Data destinasi harus berupa objek.' }];
+  }
+
+  if (typeof product.id !== 'string' || !/^dst-\d{3,}$/.test(product.id)) {
+    add('id', 'Id harus berformat dst-###.');
+  }
+  if (!isText(product.nama, 3, 80)) add('nama', 'Nama wajib diisi 3–80 karakter.');
+  if (!isEnum(product.wilayahPulau, WILAYAH_PULAU)) add('wilayahPulau', 'Wilayah pulau tidak valid.');
+  if (!isText(product.provinsi, 2, 60)) add('provinsi', 'Provinsi wajib diisi 2–60 karakter.');
+  if (!isEnum(product.jenisObjek, JENIS_OBJEK)) add('jenisObjek', 'Jenis objek tidak valid.');
+  if (!isEnum(product.kategori, KATEGORI_BAHARI)) add('kategori', 'Kategori bahari harus salah satu dari: Diving, Snorkeling, Pantai, Pulau.');
+
+  if (typeof product.estimasiBiaya !== 'number' || !Number.isFinite(product.estimasiBiaya) || product.estimasiBiaya < 0) {
+    add('estimasiBiaya', 'Estimasi biaya harus angka >= 0.');
+  }
+  if (!Number.isInteger(product.kuota) || product.kuota < 0) {
+    add('kuota', 'Kuota/slot harus bilangan bulat >= 0.');
+  }
+  if (!isEnum(product.statusAkses, STATUS_AKSES)) add('statusAkses', 'Status akses tidak valid.');
+  if (!isEnum(product.statusPopularitas, STATUS_POPULARITAS)) add('statusPopularitas', 'Status popularitas tidak valid.');
+  if (!isEnum(product.levelKeahlian, LEVEL_KEAHLIAN)) add('levelKeahlian', 'Level keahlian tidak valid.');
+
+  if (!isText(product.deskripsi, 20, 300)) add('deskripsi', 'Deskripsi wajib diisi 20–300 karakter.');
+  if (!isText(product.infoAkses, 10, 200)) add('infoAkses', 'Info akses wajib diisi 10–200 karakter.');
+  if (!isText(product.waktuTerbaik, 3, 120)) add('waktuTerbaik', 'Waktu terbaik wajib diisi 3–120 karakter.');
+  if (!isText(product.catatanLokal, 10, 200)) add('catatanLokal', 'Catatan lokal wajib diisi 10–200 karakter.');
+
+  if (!Array.isArray(product.checklistBawaan) || product.checklistBawaan.length === 0) {
+    add('checklistBawaan', 'Checklist bawaan minimal 1 item.');
+  } else {
+    const itemsValid = product.checklistBawaan.every((item) => isText(item, 3, 60));
+    if (!itemsValid) add('checklistBawaan', 'Setiap checklist item harus 3–60 karakter.');
+    const normalizedItems = product.checklistBawaan.map((item) => String(item).trim().toLowerCase());
+    if (new Set(normalizedItems).size !== normalizedItems.length) {
+      add('checklistBawaan', 'Checklist item tidak boleh duplikat.');
+    }
+  }
+
+  if (typeof product.latitude !== 'number' || !Number.isFinite(product.latitude) || product.latitude < -90 || product.latitude > 90) {
+    add('latitude', 'Latitude harus angka antara -90 dan 90.');
+  }
+  if (typeof product.longitude !== 'number' || !Number.isFinite(product.longitude) || product.longitude < -180 || product.longitude > 180) {
+    add('longitude', 'Longitude harus angka antara -180 dan 180.');
+  }
+  if (!isLocalImagePath(product.imageUrl)) {
+    add('imageUrl', 'imageUrl harus path lokal, bukan URL eksternal.');
+  }
+  if (typeof product.unggulan !== 'boolean') add('unggulan', 'Status unggulan harus boolean.');
+
+  return errors;
+}
+
+/** Validasi seluruh array, termasuk keunikan id. Dipakai saat load dan import. */
+export function validateProducts(value) {
+  if (!Array.isArray(value)) {
+    return {
+      valid: false,
+      products: [],
+      errors: [{ field: '', message: 'Data harus berupa array destinasi.' }],
+    };
+  }
+
+  const errors = [];
+  const seenIds = new Set();
+
+  value.forEach((item, index) => {
+    const path = `data[${index}]`;
+    validateProduct(item).forEach((error) => {
+      errors.push({
+        field: `${path}${error.field ? `.${error.field}` : ''}`,
+        message: error.message,
+      });
+    });
+
+    if (isPlainObject(item) && typeof item.id === 'string') {
+      if (seenIds.has(item.id)) {
+        errors.push({ field: `${path}.id`, message: `Id duplikat: ${item.id}.` });
+      }
+      seenIds.add(item.id);
+    }
+  });
+
+  return {
+    valid: errors.length === 0,
+    products: errors.length === 0 ? value : [],
+    errors,
+  };
+}
+
+/** Mengubah nilai form (string) menjadi tipe data model sebelum divalidasi. */
+export function normalizeProductInput(raw) {
+  const toNumber = (value) => (value === '' || value === null || value === undefined ? NaN : Number(value));
+  const rawChecklist = Array.isArray(raw.checklistBawaan)
+    ? raw.checklistBawaan
+    : String(raw.checklistBawaan ?? '').split(/\r?\n/);
+
+  return {
+    id: String(raw.id ?? '').trim(),
+    nama: String(raw.nama ?? '').trim(),
+    wilayahPulau: String(raw.wilayahPulau ?? '').trim(),
+    provinsi: String(raw.provinsi ?? '').trim(),
+    jenisObjek: String(raw.jenisObjek ?? '').trim(),
+    kategori: String(raw.kategori ?? '').trim(),
+    estimasiBiaya: toNumber(raw.estimasiBiaya),
+    kuota: toNumber(raw.kuota),
+    statusAkses: String(raw.statusAkses ?? '').trim(),
+    statusPopularitas: String(raw.statusPopularitas ?? '').trim(),
+    levelKeahlian: String(raw.levelKeahlian ?? '').trim(),
+    deskripsi: String(raw.deskripsi ?? '').trim(),
+    infoAkses: String(raw.infoAkses ?? '').trim(),
+    waktuTerbaik: String(raw.waktuTerbaik ?? '').trim(),
+    catatanLokal: String(raw.catatanLokal ?? '').trim(),
+    checklistBawaan: rawChecklist.map((item) => String(item).trim()).filter(Boolean),
+    latitude: toNumber(raw.latitude),
+    longitude: toNumber(raw.longitude),
+    imageUrl: String(raw.imageUrl ?? '').trim(),
+    unggulan: raw.unggulan === true || raw.unggulan === 'true' || raw.unggulan === 'on',
+  };
+}
+
+export function createProductId(products) {
+  const used = new Set(products.map((product) => product.id));
+  for (let index = 1; index <= 9999; index += 1) {
+    const candidate = `dst-${String(index).padStart(3, '0')}`;
+    if (!used.has(candidate)) return candidate;
+  }
+  return `dst-${Date.now()}`;
 }
 
 export function formatRupiah(value) {
@@ -249,7 +418,8 @@ export function buildWhatsAppUrl(nomor, destination) {
     `saya tertarik memesan paket wisata ${destination.nama.trim()}.`,
     `Kategori: ${destination.kategori || '-'}; wilayah: ${destination.wilayahPulau || '-'}.`,
     `Estimasi biaya: ${biaya}.`,
-    'Mohon informasi kuota, jadwal, dan langkah pemesanan. Terima kasih.',
+    `Sisa kuota: ${Number.isInteger(destination.kuota) ? destination.kuota : '-'} slot.`,
+    'Mohon informasi jadwal dan langkah pemesanan. Terima kasih.',
   ].join(' ');
 
   return `https://wa.me/${phone.slice(1)}?text=${encodeURIComponent(pesan)}`;
@@ -329,5 +499,13 @@ export function getSummary(products) {
     hidden: products.filter((p) => p.statusPopularitas === 'Hidden Gem').length,
     populer: products.filter((p) => p.statusPopularitas === 'Populer').length,
     unggulan: products.filter((p) => p.unggulan).length,
+    totalKuota: products.reduce(
+      (sum, product) => sum + (Number.isInteger(product.kuota) && product.kuota > 0 ? product.kuota : 0),
+      0,
+    ),
+    kategori: KATEGORI_BAHARI.map((nama) => ({
+      nama,
+      jumlah: products.filter((product) => product.kategori === nama).length,
+    })),
   };
 }

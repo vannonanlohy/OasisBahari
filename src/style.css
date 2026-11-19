@@ -259,6 +259,27 @@ select {
   text-decoration: underline;
 }
 
+.button--danger {
+  color: #fff;
+  background: var(--bahaya);
+}
+
+.button--danger:hover {
+  background: #8f1f19;
+}
+
+.button--small {
+  min-height: 36px;
+  padding: 6px 10px;
+  font-size: 13px;
+}
+
+.button--toggle[aria-pressed='true'] {
+  color: var(--tosca-gelap);
+  background: var(--biru-muda);
+  border-color: var(--tosca);
+}
+
 .field {
   display: flex;
   flex-direction: column;
@@ -270,6 +291,21 @@ select {
   color: var(--teks-sekunder);
   font-size: 14px;
   font-weight: 600;
+}
+
+.field-hint {
+  color: var(--teks-sekunder);
+  font-size: 12px;
+}
+
+.field.has-error input,
+.field.has-error select,
+.field.has-error textarea {
+  border-color: var(--bahaya);
+}
+
+.field-error:empty {
+  display: none;
 }
 
 .field input,

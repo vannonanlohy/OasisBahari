@@ -2,8 +2,11 @@
 
 import L from 'leaflet';
 import {
+  JENIS_OBJEK,
   KATEGORI_BAHARI,
+  LEVEL_KEAHLIAN,
   SORT_OPTIONS,
+  STATUS_AKSES,
   STATUS_POPULARITAS,
   WILAYAH_PULAU,
   WHATSAPP_CONFIG,
@@ -27,6 +30,14 @@ export function el(tag, options = {}, children = []) {
   const list = Array.isArray(children) ? children : [children];
   list.filter(Boolean).forEach((child) => node.append(child));
   return node;
+}
+
+function storageAlert(message) {
+  if (!message) return null;
+  return el('div', { className: 'storage-alert', attrs: { role: 'alert' } }, [
+    el('strong', { text: 'Pemulihan data' }),
+    el('span', { text: message }),
+  ]);
 }
 
 export function createShell(root, appName) {
@@ -244,6 +255,10 @@ function destinationCard(product, { saved, onOpen, onWishlist }) {
         el('h3', { className: 'card-title', text: product.nama }),
         el('p', { className: 'card-meta', text: `${product.wilayahPulau} · ${product.provinsi}` }),
         el('p', { className: 'card-meta', text: `${product.jenisObjek} · ${product.levelKeahlian}` }),
+        el('p', {
+          className: 'card-meta',
+          text: `Sisa kuota: ${Number.isInteger(product.kuota) ? product.kuota : 0} slot`,
+        }),
         el('div', { className: 'card-price' }, [
           el('span', { text: 'Estimasi biaya' }),
           el('strong', { text: formatRupiah(product.estimasiBiaya) }),
@@ -271,10 +286,13 @@ function createMarkerIcon(product) {
 }
 
 function mountMap(element, products, onOpen) {
-  if (mapInstance && mapElement && mapElement.isConnected && mapElement !== element) {
+  // renderHome selalu membuat kontainer baru; instans lama harus dibersihkan
+  // agar marker tidak menumpuk saat data CRUD berubah.
+  if (mapInstance && mapElement !== element) {
     mapInstance.remove();
     mapInstance = null;
     markerLayer = null;
+    mapElement = null;
   }
 
   if (!mapInstance) {
@@ -298,7 +316,9 @@ function mountMap(element, products, onOpen) {
     const popup = el('div', {}, [
       el('strong', { text: product.nama }),
       el('br'),
-      el('span', { text: `${product.statusPopularitas} · ${product.wilayahPulau}` }),
+      el('span', {
+        text: `${product.statusPopularitas} · ${product.kategori} · ${Number.isInteger(product.kuota) ? product.kuota : 0} slot`,
+      }),
       el('br'),
       el('a', {
         text: 'Lihat detail',
@@ -325,7 +345,7 @@ function mountMap(element, products, onOpen) {
   requestAnimationFrame(() => mapInstance.invalidateSize());
 }
 
-export function renderHome(container, { products, result, state, summary, wishlistIds, handlers }) {
+export function renderHome(container, { products, result, state, summary, wishlistIds, handlers, storageNotice = '' }) {
   container.replaceChildren();
 
   const searchInput = el('input', {
@@ -442,7 +462,7 @@ export function renderHome(container, { products, result, state, summary, wishli
     grid,
   ]);
 
-  container.append(hero, controls, mapCard, catalog);
+  container.append(...[storageAlert(storageNotice), hero, controls, mapCard, catalog].filter(Boolean));
   mountMap(mapElementNode, result.items, handlers.onOpen);
 }
 
@@ -503,54 +523,348 @@ export function renderAboutPage(container, { appName }) {
   );
 }
 
-export function renderDashboardPage(container, { products, summary, handlers }) {
+const DASHBOARD_FORM_GROUPS = [
+  {
+    title: 'Identitas',
+    fields: [
+      { name: 'nama', label: 'Nama destinasi', type: 'text', placeholder: 'Contoh: Bunaken' },
+      { name: 'provinsi', label: 'Provinsi', type: 'text', placeholder: 'Contoh: Sulawesi Utara' },
+    ],
+  },
+  {
+    title: 'Klasifikasi & operasional',
+    fields: [
+      { name: 'wilayahPulau', label: 'Wilayah pulau', type: 'select', options: WILAYAH_PULAU },
+      { name: 'jenisObjek', label: 'Jenis objek', type: 'select', options: JENIS_OBJEK },
+      { name: 'kategori', label: 'Kategori bahari', type: 'select', options: KATEGORI_BAHARI },
+      { name: 'statusAkses', label: 'Status akses', type: 'select', options: STATUS_AKSES },
+      { name: 'statusPopularitas', label: 'Status popularitas', type: 'select', options: STATUS_POPULARITAS },
+      { name: 'levelKeahlian', label: 'Level keahlian', type: 'select', options: LEVEL_KEAHLIAN },
+      { name: 'estimasiBiaya', label: 'Estimasi biaya (Rp)', type: 'number', min: 0, step: 'any' },
+      { name: 'kuota', label: 'Kuota / slot', type: 'number', min: 0, step: 1 },
+    ],
+  },
+  {
+    title: 'Narasi & checklist',
+    fields: [
+      { name: 'deskripsi', label: 'Deskripsi', type: 'textarea', full: true },
+      { name: 'infoAkses', label: 'Info akses', type: 'textarea', full: true },
+      { name: 'waktuTerbaik', label: 'Waktu terbaik', type: 'text', full: true },
+      { name: 'catatanLokal', label: 'Catatan lokal', type: 'textarea', full: true },
+      {
+        name: 'checklistBawaan',
+        label: 'Checklist bawaan',
+        type: 'textarea',
+        full: true,
+        hint: 'Satu item per baris, minimal 1 item.',
+      },
+    ],
+  },
+  {
+    title: 'Koordinat, gambar & unggulan',
+    fields: [
+      { name: 'latitude', label: 'Latitude', type: 'number', step: 'any' },
+      { name: 'longitude', label: 'Longitude', type: 'number', step: 'any' },
+      {
+        name: 'imageUrl',
+        label: 'Path gambar lokal',
+        type: 'text',
+        placeholder: 'Kosongkan untuk placeholder',
+        hint: 'Path lokal saja; URL eksternal ditolak.',
+      },
+      { name: 'unggulan', label: 'Tandai sebagai unggulan', type: 'checkbox' },
+    ],
+  },
+];
+
+function dashboardFormControl(field, values, errors, onChange) {
+  const id = `form-${field.name}`;
+  const value = values[field.name] ?? '';
+  const error = errors[field.name] || '';
+  const handleChange = (event) => {
+    const nextValue = field.type === 'checkbox' ? event.target.checked : event.target.value;
+    onChange(field.name, nextValue);
+  };
+
+  let control;
+  if (field.type === 'select') {
+    control = el('select', { attrs: { id, name: field.name }, on: { change: handleChange } }, [
+      el('option', { text: 'Pilih…', attrs: { value: '', selected: value === '' } }),
+      ...field.options.map((option) =>
+        el('option', {
+          text: option,
+          attrs: { value: option, selected: value === option },
+        }),
+      ),
+    ]);
+  } else if (field.type === 'textarea') {
+    control = el('textarea', {
+      text: value,
+      attrs: { id, name: field.name, rows: 3, placeholder: field.placeholder || '' },
+      on: { input: handleChange },
+    });
+  } else if (field.type === 'checkbox') {
+    control = el('input', {
+      attrs: { id, name: field.name, type: 'checkbox', checked: value === true },
+      on: { change: handleChange },
+    });
+  } else {
+    control = el('input', {
+      attrs: {
+        id,
+        name: field.name,
+        type: field.type,
+        value: String(value),
+        placeholder: field.placeholder || '',
+        min: field.min,
+        step: field.step,
+      },
+      on: { input: handleChange },
+    });
+  }
+
+  const label = field.type === 'checkbox'
+    ? el('label', { className: 'check-label', attrs: { for: id } }, [control, el('span', { text: field.label })])
+    : el('label', { text: field.label, attrs: { for: id } });
+
+  return el('div', {
+    className: `field${field.full ? ' field--full' : ''}${error ? ' has-error' : ''}`,
+  }, [
+    label,
+    ...(field.type === 'checkbox' ? [] : [control]),
+    field.hint ? el('small', { className: 'field-hint', text: field.hint }) : null,
+    el('p', {
+      className: 'field-error',
+      text: error,
+      attrs: { 'data-error-for': field.name, role: error ? 'alert' : null },
+    }),
+  ]);
+}
+
+function dashboardRowActions(product, handlers) {
+  return el('div', { className: 'admin-actions' }, [
+    el('button', {
+      className: 'button button--small button--ghost',
+      text: 'Edit',
+      attrs: { type: 'button' },
+      on: { click: () => handlers.onEditProduct(product.id) },
+    }),
+    el('button', {
+      className: 'button button--small button--ghost button--toggle',
+      text: product.unggulan ? 'Unggulan ✓' : 'Jadikan unggulan',
+      attrs: { type: 'button', 'aria-pressed': String(Boolean(product.unggulan)) },
+      on: { click: () => handlers.onToggleFeatured(product.id) },
+    }),
+    el('button', {
+      className: 'button button--small button--danger',
+      text: 'Hapus',
+      attrs: { type: 'button' },
+      on: { click: () => handlers.onDeleteProduct(product.id) },
+    }),
+    el('button', {
+      className: 'button button--small button--link',
+      text: 'Detail',
+      attrs: { type: 'button' },
+      on: { click: (event) => handlers.onOpen(product, event.currentTarget) },
+    }),
+  ]);
+}
+
+export function renderDashboardPage(container, { products, summary, handlers, form, notice = '' }) {
   container.replaceChildren();
 
-  const list = el('div', { className: 'admin-list' });
+  const activeForm = form || { id: '', values: {}, errors: {} };
+  const summaryCards = [
+    ['Total destinasi', summary.total],
+    ['Total kuota/slot', summary.totalKuota],
+    ['Hidden Gem', summary.hidden],
+    ['Populer', summary.populer],
+  ].map(([label, value]) =>
+    el('article', { className: 'summary-card' }, [
+      el('span', { text: label }),
+      el('strong', { text: String(value) }),
+    ]),
+  );
+
+  const categorySummary = el(
+    'div',
+    { className: 'category-summary', attrs: { 'aria-label': 'Jumlah destinasi per kategori bahari' } },
+    summary.kategori.map((item) =>
+      el('article', { className: 'category-chip' }, [
+        el('span', { text: item.nama }),
+        el('strong', { text: String(item.jumlah) }),
+      ]),
+    ),
+  );
+
+  const importInput = el('input', {
+    attrs: {
+      type: 'file',
+      id: 'import-json',
+      accept: 'application/json,.json',
+      className: 'sr-only',
+    },
+    on: {
+      change: (event) => {
+        const file = event.target.files?.[0];
+        if (file) handlers.onImportProducts(file);
+        event.target.value = '';
+      },
+    },
+  });
+
+  const toolbar = el('div', { className: 'dashboard-toolbar' }, [
+    el('button', {
+      className: 'button button--primary',
+      text: 'Tambah destinasi',
+      attrs: { type: 'button' },
+      on: { click: handlers.onStartAdd },
+    }),
+    el('button', {
+      className: 'button button--ghost',
+      text: 'Export JSON',
+      attrs: { type: 'button' },
+      on: { click: handlers.onExportProducts },
+    }),
+    el('label', { className: 'button button--ghost', text: 'Import JSON', attrs: { for: 'import-json' } }),
+    importInput,
+    el('button', {
+      className: 'button button--danger',
+      text: 'Reset demo',
+      attrs: { type: 'button' },
+      on: { click: handlers.onResetAll },
+    }),
+  ]);
+
+  const tableBody = el('tbody');
+  const mobileList = el('div', { className: 'admin-mobile-list' });
+
   products.forEach((product) => {
-    list.append(
+    tableBody.append(
+      el('tr', {}, [
+        el('td', {}, [
+          el('strong', { text: product.nama }),
+          el('small', { className: 'cell-hint', text: formatRupiah(product.estimasiBiaya) }),
+        ]),
+        el('td', { text: product.kategori || '-' }),
+        el('td', { text: `${Number.isInteger(product.kuota) ? product.kuota : 0} slot` }),
+        el('td', { text: product.wilayahPulau }),
+        el('td', {}, [accessStatusBadge(product)]),
+        el('td', { text: product.unggulan ? 'Ya' : 'Tidak' }),
+        el('td', {}, [dashboardRowActions(product, handlers)]),
+      ]),
+    );
+
+    mobileList.append(
       el('article', { className: 'admin-row' }, [
         el('div', {}, [
           el('h3', { text: product.nama }),
-          el('p', { className: 'card-meta', text: `${product.wilayahPulau} · ${product.provinsi}` }),
-          el('p', { className: 'card-meta', text: `${product.statusPopularitas} · ${product.levelKeahlian}` }),
+          el('p', { className: 'card-meta', text: `${product.kategori} · ${product.wilayahPulau}` }),
           el('p', {
             className: 'card-meta',
-            text: `${product.kategori || '-'} · ${formatRupiah(product.estimasiBiaya)} · ${product.statusAkses || '-'}`,
+            text: `${formatRupiah(product.estimasiBiaya)} · ${Number.isInteger(product.kuota) ? product.kuota : 0} slot`,
           }),
+          el('div', { className: 'badges' }, [
+            accessStatusBadge(product),
+            product.unggulan ? el('span', { className: 'status status--featured', text: 'Unggulan' }) : null,
+          ]),
         ]),
-        el('div', { className: 'admin-actions' }, [
-          el('button', {
-            className: 'button button--ghost',
-            text: 'Lihat detail',
-            attrs: { type: 'button' },
-            on: { click: (event) => handlers.onOpen(product, event.currentTarget) },
-          }),
-        ]),
+        dashboardRowActions(product, handlers),
       ]),
     );
   });
 
-  container.append(
-    el('section', { className: 'page' }, [
-      el('h1', { text: 'Dashboard demo' }),
-      el('p', { className: 'page-subtitle', text: 'Tanpa login. Perubahan hanya disimpan di perangkat ini.' }),
-      el('div', { className: 'summary-grid' }, [
-        el('article', { className: 'summary-card' }, [el('span', { text: 'Total destinasi' }), el('strong', { text: String(summary.total) })]),
-        el('article', { className: 'summary-card' }, [el('span', { text: 'Hidden Gem' }), el('strong', { text: String(summary.hidden) })]),
-        el('article', { className: 'summary-card' }, [el('span', { text: 'Populer' }), el('strong', { text: String(summary.populer) })]),
+  const tableWrap = el('div', { className: 'admin-table-wrap' }, [
+    el('table', { className: 'admin-table' }, [
+      el('thead', {}, [
+        el('tr', {}, [
+          el('th', { text: 'Nama & biaya' }),
+          el('th', { text: 'Kategori' }),
+          el('th', { text: 'Kuota' }),
+          el('th', { text: 'Wilayah' }),
+          el('th', { text: 'Status akses' }),
+          el('th', { text: 'Unggulan' }),
+          el('th', { text: 'Aksi' }),
+        ]),
       ]),
+      tableBody,
+    ]),
+  ]);
+
+  const formGroups = DASHBOARD_FORM_GROUPS.map((group) =>
+    el('fieldset', { className: 'form-section' }, [
+      el('legend', { text: group.title }),
+      el(
+        'div',
+        { className: 'form-grid' },
+        group.fields.map((field) =>
+          dashboardFormControl(field, activeForm.values, activeForm.errors, handlers.onFormChange),
+        ),
+      ),
+    ]),
+  );
+
+  const productForm = el('form', {
+    className: 'product-form',
+    attrs: { id: 'product-form', novalidate: true },
+    on: { submit: handlers.onFormSubmit },
+  }, [
+    el('div', { className: 'form-heading' }, [
+      el('h2', {
+        text: activeForm.id ? `Edit destinasi — ${activeForm.id}` : 'Tambah destinasi',
+      }),
+      activeForm.id
+        ? el('button', {
+            className: 'button button--small button--ghost',
+            text: 'Batal edit',
+            attrs: { type: 'button' },
+            on: { click: handlers.onCancelEdit },
+          })
+        : null,
+    ]),
+    ...formGroups,
+    el('div', { className: 'form-actions' }, [
       el('button', {
         className: 'button button--primary',
-        text: 'Reset ke data contoh',
-        attrs: { type: 'button' },
-        on: {
-          click: () => {
-            if (window.confirm('Reset seluruh data lokal ke 8 destinasi contoh?')) handlers.onResetAll();
-          },
-        },
+        text: activeForm.id ? 'Simpan perubahan' : 'Tambah destinasi',
+        attrs: { type: 'submit' },
       }),
-      list,
+      el('button', {
+        className: 'button button--ghost',
+        text: 'Kosongkan form',
+        attrs: { type: 'button' },
+        on: { click: handlers.onStartAdd },
+      }),
+    ]),
+  ]);
+
+  container.append(
+    el('section', { className: 'page dashboard-page' }, [
+      storageAlert(notice),
+      el('h1', { text: 'Dashboard demo' }),
+      el('p', {
+        className: 'page-subtitle',
+        text: 'Tanpa login. Perubahan langsung tersimpan di localStorage dan tampak di katalog serta peta.',
+      }),
+      el('p', {
+        className: 'storage-key',
+        text: 'Key penyimpanan: oasisbahari:products:v1',
+      }),
+      el('div', { className: 'summary-grid' }, summaryCards),
+      categorySummary,
+      toolbar,
+      el('section', { className: 'dashboard-section' }, [
+        el('h2', { text: 'Daftar destinasi wisata' }),
+        tableWrap,
+        mobileList,
+        products.length === 0
+          ? el('div', { className: 'empty-state' }, [
+              el('h3', { text: 'Belum ada destinasi' }),
+              el('p', { text: 'Tambah destinasi baru atau reset ke data contoh.' }),
+            ])
+          : null,
+      ]),
+      productForm,
     ]),
   );
 }
@@ -678,7 +992,9 @@ export function openDetailModal(product, options = {}) {
         ]),
         el('div', {}, [
           el('h3', { text: 'Status kuota/akses' }),
-          el('p', { text: product.statusAkses || 'Status tidak diketahui' }),
+          el('p', {
+            text: `${product.statusAkses || 'Status tidak diketahui'} · ${Number.isInteger(product.kuota) ? product.kuota : 0} slot`,
+          }),
         ]),
         el('div', {}, [el('h3', { text: 'Info akses' }), el('p', { text: product.infoAkses })]),
         el('div', {}, [el('h3', { text: 'Waktu terbaik' }), el('p', { text: product.waktuTerbaik })]),
@@ -767,8 +1083,8 @@ export function openDetailModal(product, options = {}) {
   closeButton.focus();
 }
 
-export function showToast(host, message, type = 'info') {
+export function showToast(host, message, type = 'info', duration = 3500) {
   const toast = el('div', { className: `toast toast--${type}`, text: message });
   host.append(toast);
-  window.setTimeout(() => toast.remove(), 3500);
+  window.setTimeout(() => toast.remove(), duration);
 }
