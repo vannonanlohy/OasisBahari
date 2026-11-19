@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" role="img" aria-label="Ilustrasi Pulau Menjangan">
+  <defs><linearGradient id="s" x2="0" y2="1"><stop stop-color="#8fd9ea"/><stop offset="1" stop-color="#e0f6f7"/></linearGradient><linearGradient id="l" x2="0" y2="1"><stop stop-color="#167a96"/><stop offset="1" stop-color="#06435c"/></linearGradient></defs>
+  <rect width="640" height="360" fill="url(#s)"/><circle cx="522" cy="74" r="34" fill="#ffe6a1"/>
+  <path d="M0 216Q160 178 320 216T640 216V360H0Z" fill="url(#l)"/>
+  <path d="M150 216 246 142 342 216Z" fill="#3f7154"/><path d="M186 216 246 158 306 216Z" fill="#2c5942"/>
+  <path d="M0 268Q160 236 320 268T640 268" fill="none" stroke="#c7eff2" stroke-width="5" opacity=".65"/>
+  <path d="M0 316Q160 292 320 316T640 316" fill="none" stroke="#c7eff2" stroke-width="4" opacity=".4"/>
+</svg>

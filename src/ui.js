@@ -2,17 +2,18 @@
 
 import L from 'leaflet';
 import {
-  JENIS_OBJEK,
+  DEFAULT_UI_STATE,
+  IMAGE_PRESETS,
+  KABUPATEN_BALI,
   KATEGORI_BAHARI,
-  LEVEL_KEAHLIAN,
   SORT_OPTIONS,
-  STATUS_AKSES,
   STATUS_POPULARITAS,
   WILAYAH_PULAU,
   WHATSAPP_CONFIG,
   buildWhatsAppUrl,
   formatRupiah,
 } from './products.js';
+import { isSafeAttribute } from './dom-safety.js';
 
 export function el(tag, options = {}, children = []) {
   const node = document.createElement(tag);
@@ -23,6 +24,8 @@ export function el(tag, options = {}, children = []) {
 
   Object.entries(attrs).forEach(([key, value]) => {
     if (value === false || value === null || value === undefined) return;
+    // Jangan pernah memasang URL dengan skema di luar allowlist (javascript:, data:, ...).
+    if (!isSafeAttribute(key, value)) return;
     node.setAttribute(key, value === true ? '' : String(value));
   });
   Object.entries(on).forEach(([event, handler]) => node.addEventListener(event, handler));
@@ -144,6 +147,25 @@ function accessStatusBadge(product) {
   });
 }
 
+function destinationImage(product, className = 'card-image') {
+  if (!product.imageUrl) {
+    return el('span', {
+      className: 'card-wave',
+      text: '≈',
+      attrs: { role: 'img', 'aria-label': 'Ilustrasi laut' },
+    });
+  }
+
+  return el('img', {
+    className,
+    attrs: {
+      src: product.imageUrl,
+      alt: `Ilustrasi ${product.nama}`,
+      loading: 'lazy',
+    },
+  });
+}
+
 function createWhatsAppButton(product) {
   let disabled = STATUS_PEMESANAN_DINONAKTIFKAN.has(product.statusAkses);
   let reason = '';
@@ -235,11 +257,7 @@ function destinationCard(product, { saved, onOpen, onWishlist }) {
     },
     [
       el('div', { className: 'card-media' }, [
-        el('span', {
-          className: 'card-wave',
-          text: '≈',
-          attrs: { role: 'img', 'aria-label': 'Ilustrasi laut' },
-        }),
+        destinationImage(product),
         wishlistButton,
       ]),
       el('div', { className: 'card-body' }, [
@@ -314,6 +332,7 @@ function mountMap(element, products, onOpen) {
     }).addTo(markerLayer);
 
     const popup = el('div', {}, [
+      product.imageUrl ? destinationImage(product, 'popup-image') : null,
       el('strong', { text: product.nama }),
       el('br'),
       el('span', {
@@ -322,7 +341,8 @@ function mountMap(element, products, onOpen) {
       el('br'),
       el('a', {
         text: 'Lihat detail',
-        attrs: { href: '#/', className: 'popup-link' },
+        className: 'popup-link',
+        attrs: { href: '#/' },
         on: {
           click: (event) => {
             event.preventDefault();
@@ -345,73 +365,89 @@ function mountMap(element, products, onOpen) {
   requestAnimationFrame(() => mapInstance.invalidateSize());
 }
 
-export function renderHome(container, { products, result, state, summary, wishlistIds, handlers, storageNotice = '' }) {
-  container.replaceChildren();
+// Tampilan home dipertahankan antar-render. Hanya bagian dinamis (kartu,
+// marker, jumlah hasil, dan ringkasan) yang diperbarui agar input pencarian
+// tidak diciptakan ulang—fokus dan posisi kursor pengguna tetap aman.
+const homeViews = new WeakMap();
 
+function syncInputValue(input, value) {
+  const next = String(value ?? '');
+  if (input.value !== next) input.value = next;
+}
+
+function buildHomeView(container) {
+  const refs = { handlers: {} };
+
+  const alertSlot = el('div', { className: 'home-alert-slot' });
   const searchInput = el('input', {
     attrs: {
       id: 'q',
       name: 'q',
       type: 'search',
-      value: state.q,
       placeholder: 'Cari nama, wilayah, atau tips lokal…',
       autocomplete: 'off',
     },
-    on: { input: (event) => handlers.onChange({ q: event.target.value }) },
+    on: { input: (event) => refs.handlers.onChange?.({ q: event.target.value }) },
   });
 
+  const heroSubtitle = el('p');
+  const chipTotal = el('span', { className: 'chip' });
+  const chipHidden = el('span', { className: 'chip' });
+  const chipPopuler = el('span', { className: 'chip' });
   const hero = el('section', { className: 'hero' }, [
     el('div', { className: 'hero-copy' }, [
-      el('h1', { text: 'Temukan hidden gems laut Nusantara.' }),
-      el('p', {
-        text: 'Delapan destinasi laut, empat kategori bahari, estimasi biaya, dan status kuota yang mudah dipindai.',
-      }),
+      el('h1', { text: 'Temukan hidden gems bahari Bali.' }),
+      heroSubtitle,
       el('div', { className: 'hero-search' }, [
         el('label', { className: 'sr-only', text: 'Cari destinasi', attrs: { for: 'q' } }),
         searchInput,
         el('a', { className: 'button button--primary', text: 'Jelajahi', attrs: { href: '#destinasi' } }),
       ]),
       el('div', { className: 'chips', attrs: { 'aria-label': 'Ringkasan katalog' } }, [
-        el('span', { className: 'chip', text: `${summary.total} destinasi` }),
-        el('span', { className: 'chip', text: `${summary.hidden} hidden gems` }),
-        el('span', { className: 'chip', text: `${summary.populer} populer` }),
+        chipTotal,
+        chipHidden,
+        chipPopuler,
       ]),
     ]),
   ]);
 
+  const mirrorInput = el('input', {
+    attrs: {
+      id: 'q-filter',
+      type: 'search',
+      placeholder: 'Nama, kategori, wilayah, atau catatan lokal',
+    },
+    on: { input: (event) => refs.handlers.onChange?.({ q: event.target.value }) },
+  });
+
+  const onChange = (patch) => refs.handlers.onChange?.(patch);
   const controls = el('section', { className: 'controls', attrs: { 'aria-label': 'Filter dan pengurutan' } }, [
     el('div', { className: 'field field--search' }, [
       el('label', { text: 'Cari', attrs: { for: 'q-filter' } }),
-      (() => {
-        const mirror = el('input', {
-          attrs: {
-            id: 'q-filter',
-            type: 'search',
-            value: state.q,
-            placeholder: 'Nama, kategori, wilayah, atau catatan lokal',
-          },
-          on: { input: (event) => handlers.onChange({ q: event.target.value }) },
-        });
-        return mirror;
-      })(),
+      mirrorInput,
     ]),
-    selectField('Kategori', 'kategori', [{ value: '', label: 'Semua kategori' }, ...KATEGORI_BAHARI], state.kategori, handlers.onChange),
-    selectField('Wilayah', 'wilayah', [{ value: '', label: 'Semua wilayah' }, ...WILAYAH_PULAU], state.wilayah, handlers.onChange),
-    selectField('Status', 'status', [{ value: '', label: 'Semua status' }, ...STATUS_POPULARITAS], state.status, handlers.onChange),
-    selectField('Urutkan', 'sort', SORT_OPTIONS, state.sort, handlers.onChange),
+    selectField('Kategori', 'kategori', [{ value: '', label: 'Semua kategori' }, ...KATEGORI_BAHARI], '', onChange),
+    selectField('Wilayah', 'wilayah', [{ value: '', label: 'Semua wilayah' }, ...WILAYAH_PULAU], '', onChange),
+    selectField('Status', 'status', [{ value: '', label: 'Semua status' }, ...STATUS_POPULARITAS], '', onChange),
+    selectField('Urutkan', 'sort', SORT_OPTIONS, DEFAULT_UI_STATE.sort, onChange),
     el('button', {
       className: 'button button--ghost',
       text: 'Reset',
       attrs: { type: 'button' },
-      on: { click: handlers.onReset },
+      on: { click: () => refs.handlers.onReset?.() },
     }),
   ]);
 
-  const notice = result.shortQuery
-    ? el('p', { className: 'notice', text: 'Ketik minimal 2 karakter untuk mencari. Filter kategori, wilayah, dan status tetap diterapkan.' })
-    : el('p', { className: 'result-count', text: `Menampilkan ${result.items.length} dari ${products.length} destinasi` });
-
-  const mapElementNode = el('div', { className: 'map', attrs: { id: 'peta', role: 'application', 'aria-label': 'Peta sebaran destinasi' } });
+  const notice = el('p');
+  const mapElementNode = el('div', {
+    className: 'map',
+    attrs: { id: 'peta', role: 'application', 'aria-label': 'Peta sebaran destinasi' },
+  });
+  const mapEmpty = el('div', {
+    className: 'map-empty',
+    text: 'Tidak ada marker untuk filter ini.',
+    attrs: { hidden: true },
+  });
   const mapCard = el('section', { className: 'map-card' }, [
     el('div', { className: 'section-heading' }, [
       el('h2', { text: 'Peta sebaran destinasi' }),
@@ -422,37 +458,10 @@ export function renderHome(container, { products, result, state, summary, wishli
       el('span', { className: 'legend-item', text: '◆ Hidden Gem' }),
     ]),
     mapElementNode,
-    result.items.length === 0
-      ? el('div', { className: 'map-empty', text: 'Tidak ada marker untuk filter ini.' })
-      : null,
+    mapEmpty,
   ]);
 
   const grid = el('div', { className: 'card-grid' });
-  result.items.forEach((product) => {
-    grid.append(
-      destinationCard(product, {
-        saved: wishlistIds.has(product.id),
-        onOpen: handlers.onOpen,
-        onWishlist: handlers.onWishlist,
-      }),
-    );
-  });
-
-  if (result.items.length === 0) {
-    grid.append(
-      el('div', { className: 'empty-state' }, [
-        el('h3', { text: 'Belum ada yang cocok' }),
-        el('p', { text: 'Coba ubah kata kunci atau reset filter.' }),
-        el('button', {
-          className: 'button button--primary',
-          text: 'Reset filter',
-          attrs: { type: 'button' },
-          on: { click: handlers.onReset },
-        }),
-      ]),
-    );
-  }
-
   const catalog = el('section', { className: 'catalog', attrs: { id: 'destinasi' } }, [
     el('div', { className: 'section-heading' }, [
       el('h2', { text: 'Destinasi' }),
@@ -462,8 +471,86 @@ export function renderHome(container, { products, result, state, summary, wishli
     grid,
   ]);
 
-  container.append(...[storageAlert(storageNotice), hero, controls, mapCard, catalog].filter(Boolean));
-  mountMap(mapElementNode, result.items, handlers.onOpen);
+  container.replaceChildren(alertSlot, hero, controls, mapCard, catalog);
+
+  return {
+    ...refs,
+    alertSlot,
+    searchInput,
+    mirrorInput,
+    heroSubtitle,
+    chipTotal,
+    chipHidden,
+    chipPopuler,
+    categorySelect: controls.querySelector('#filter-kategori'),
+    wilayahSelect: controls.querySelector('#filter-wilayah'),
+    statusSelect: controls.querySelector('#filter-status'),
+    sortSelect: controls.querySelector('#filter-sort'),
+    notice,
+    mapElementNode,
+    mapEmpty,
+    grid,
+  };
+}
+
+export function renderHome(container, options) {
+  const { products, result, state, summary, wishlistIds, handlers, storageNotice = '' } = options;
+
+  let refs = homeViews.get(container);
+  if (!refs || !container.contains(refs.mapElementNode)) {
+    refs = buildHomeView(container);
+    homeViews.set(container, refs);
+  }
+  refs.handlers = handlers;
+
+  syncInputValue(refs.searchInput, state.q);
+  syncInputValue(refs.mirrorInput, state.q);
+  refs.categorySelect.value = state.kategori;
+  refs.wilayahSelect.value = state.wilayah;
+  refs.statusSelect.value = state.status;
+  refs.sortSelect.value = state.sort;
+
+  refs.heroSubtitle.textContent = `${summary.total} destinasi bahari populer di Bali, empat kategori, estimasi biaya, dan status kuota yang mudah dipindai.`;
+  refs.chipTotal.textContent = `${summary.total} destinasi`;
+  refs.chipHidden.textContent = `${summary.hidden} hidden gems`;
+  refs.chipPopuler.textContent = `${summary.populer} populer`;
+
+  refs.alertSlot.replaceChildren(...(storageNotice ? [storageAlert(storageNotice)] : []));
+
+  if (result.shortQuery) {
+    refs.notice.className = 'notice';
+    refs.notice.textContent = 'Ketik minimal 2 karakter untuk mencari. Filter kategori, wilayah, dan status tetap diterapkan.';
+  } else {
+    refs.notice.className = 'result-count';
+    refs.notice.textContent = `Menampilkan ${result.items.length} dari ${products.length} destinasi`;
+  }
+
+  const cards = result.items.map((product) =>
+    destinationCard(product, {
+      saved: wishlistIds.has(product.id),
+      onOpen: handlers.onOpen,
+      onWishlist: handlers.onWishlist,
+    }),
+  );
+
+  if (result.items.length === 0) {
+    cards.push(
+      el('div', { className: 'empty-state' }, [
+        el('h3', { text: 'Belum ada yang cocok' }),
+        el('p', { text: 'Coba ubah kata kunci atau reset filter.' }),
+        el('button', {
+          className: 'button button--primary',
+          text: 'Reset filter',
+          attrs: { type: 'button' },
+          on: { click: () => handlers.onReset() },
+        }),
+      ]),
+    );
+  }
+  refs.grid.replaceChildren(...cards);
+  refs.mapEmpty.hidden = result.items.length !== 0;
+
+  mountMap(refs.mapElementNode, result.items, handlers.onOpen);
 }
 
 export function renderWishlistPage(container, { products, wishlist, handlers }) {
@@ -698,11 +785,11 @@ export function renderDashboardPage(container, { products, summary, handlers, fo
   );
 
   const importInput = el('input', {
+    className: 'sr-only',
     attrs: {
       type: 'file',
       id: 'import-json',
       accept: 'application/json,.json',
-      className: 'sr-only',
     },
     on: {
       change: (event) => {
