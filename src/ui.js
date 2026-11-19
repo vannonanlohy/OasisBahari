@@ -1,7 +1,15 @@
 // Semua fungsi render DOM. Data mentah tidak pernah disuntikkan sebagai HTML.
 
 import L from 'leaflet';
-import { SORT_OPTIONS, STATUS_POPULARITAS, WILAYAH_PULAU } from './products.js';
+import {
+  KATEGORI_BAHARI,
+  SORT_OPTIONS,
+  STATUS_POPULARITAS,
+  WILAYAH_PULAU,
+  WHATSAPP_CONFIG,
+  buildWhatsAppUrl,
+  formatRupiah,
+} from './products.js';
 
 export function el(tag, options = {}, children = []) {
   const node = document.createElement(tag);
@@ -106,6 +114,72 @@ function selectField(label, name, options, value, onChange) {
   ]);
 }
 
+const STATUS_PEMESANAN_DINONAKTIFKAN = new Set(['Penuh', 'Tidak Tersedia']);
+
+function accessStatusClass(statusAkses) {
+  const daftar = {
+    Tersedia: 'tersedia',
+    'Kuota Terbatas': 'terbatas',
+    Penuh: 'penuh',
+    'Tidak Tersedia': 'tidak-tersedia',
+  };
+  return daftar[statusAkses] || 'netral';
+}
+
+function accessStatusBadge(product) {
+  return el('span', {
+    className: `status-akses status-akses--${accessStatusClass(product.statusAkses)}`,
+    text: product.statusAkses || 'Status tidak diketahui',
+  });
+}
+
+function createWhatsAppButton(product) {
+  let disabled = STATUS_PEMESANAN_DINONAKTIFKAN.has(product.statusAkses);
+  let reason = '';
+
+  if (disabled) {
+    reason = product.statusAkses === 'Penuh'
+      ? 'Kuota penuh — pemesanan dinonaktifkan.'
+      : 'Tidak tersedia — pemesanan dinonaktifkan.';
+  }
+
+  let href = '';
+  if (!disabled) {
+    try {
+      href = buildWhatsAppUrl(WHATSAPP_CONFIG.number, product);
+    } catch {
+      disabled = true;
+      reason = 'Nomor WhatsApp admin belum valid.';
+    }
+  }
+
+  const attrs = disabled
+    ? {
+        type: 'button',
+        disabled: true,
+        'aria-disabled': 'true',
+        title: reason,
+      }
+    : {
+        href,
+        target: '_blank',
+        rel: 'noopener noreferrer',
+        title: `Hubungi ${WHATSAPP_CONFIG.label} via WhatsApp`,
+      };
+
+  return el(disabled ? 'button' : 'a', {
+    className: `button button--whatsapp${disabled ? ' is-disabled' : ''}`,
+    text: 'Pesan via WhatsApp',
+    attrs: {
+      ...attrs,
+      'aria-label': disabled
+        ? `${product.nama}: ${reason}`
+        : `Pesan paket ${product.nama} via WhatsApp`,
+    },
+    on: { click: (event) => event.stopPropagation() },
+  });
+}
+
 function destinationCard(product, { saved, onOpen, onWishlist }) {
   let card;
 
@@ -127,6 +201,12 @@ function destinationCard(product, { saved, onOpen, onWishlist }) {
     },
   });
 
+  const actions = el(
+    'div',
+    { className: 'card-actions', on: { click: (event) => event.stopPropagation() } },
+    [createWhatsAppButton(product)],
+  );
+
   card = el(
     'article',
     {
@@ -143,8 +223,13 @@ function destinationCard(product, { saved, onOpen, onWishlist }) {
       },
     },
     [
-      el('div', { className: 'card-media', attrs: { role: 'img', 'aria-label': 'Ilustrasi laut' } }, [
-        el('span', { className: 'card-wave', text: '≈', attrs: { 'aria-hidden': 'true' } }),
+      el('div', { className: 'card-media' }, [
+        el('span', {
+          className: 'card-wave',
+          text: '≈',
+          attrs: { role: 'img', 'aria-label': 'Ilustrasi laut' },
+        }),
+        wishlistButton,
       ]),
       el('div', { className: 'card-body' }, [
         el('div', { className: 'badges' }, [
@@ -152,12 +237,18 @@ function destinationCard(product, { saved, onOpen, onWishlist }) {
             className: `status status--${product.statusPopularitas === 'Hidden Gem' ? 'hidden' : 'popular'}`,
             text: product.statusPopularitas,
           }),
+          el('span', { className: 'status status--kategori', text: product.kategori || '-' }),
           product.unggulan ? el('span', { className: 'status status--featured', text: 'Unggulan' }) : null,
+          accessStatusBadge(product),
         ]),
         el('h3', { className: 'card-title', text: product.nama }),
         el('p', { className: 'card-meta', text: `${product.wilayahPulau} · ${product.provinsi}` }),
         el('p', { className: 'card-meta', text: `${product.jenisObjek} · ${product.levelKeahlian}` }),
-        wishlistButton,
+        el('div', { className: 'card-price' }, [
+          el('span', { text: 'Estimasi biaya' }),
+          el('strong', { text: formatRupiah(product.estimasiBiaya) }),
+        ]),
+        actions,
       ]),
     ],
   );
@@ -253,7 +344,7 @@ export function renderHome(container, { products, result, state, summary, wishli
     el('div', { className: 'hero-copy' }, [
       el('h1', { text: 'Temukan hidden gems laut Nusantara.' }),
       el('p', {
-        text: 'Delapan destinasi laut, dari spot populer hingga sudut yang masih tenang.',
+        text: 'Delapan destinasi laut, empat kategori bahari, estimasi biaya, dan status kuota yang mudah dipindai.',
       }),
       el('div', { className: 'hero-search' }, [
         el('label', { className: 'sr-only', text: 'Cari destinasi', attrs: { for: 'q' } }),
@@ -277,13 +368,14 @@ export function renderHome(container, { products, result, state, summary, wishli
             id: 'q-filter',
             type: 'search',
             value: state.q,
-            placeholder: 'Nama, wilayah, atau catatan lokal',
+            placeholder: 'Nama, kategori, wilayah, atau catatan lokal',
           },
           on: { input: (event) => handlers.onChange({ q: event.target.value }) },
         });
         return mirror;
       })(),
     ]),
+    selectField('Kategori', 'kategori', [{ value: '', label: 'Semua kategori' }, ...KATEGORI_BAHARI], state.kategori, handlers.onChange),
     selectField('Wilayah', 'wilayah', [{ value: '', label: 'Semua wilayah' }, ...WILAYAH_PULAU], state.wilayah, handlers.onChange),
     selectField('Status', 'status', [{ value: '', label: 'Semua status' }, ...STATUS_POPULARITAS], state.status, handlers.onChange),
     selectField('Urutkan', 'sort', SORT_OPTIONS, state.sort, handlers.onChange),
@@ -296,7 +388,7 @@ export function renderHome(container, { products, result, state, summary, wishli
   ]);
 
   const notice = result.shortQuery
-    ? el('p', { className: 'notice', text: 'Ketik minimal 2 karakter untuk mencari. Semua destinasi ditampilkan.' })
+    ? el('p', { className: 'notice', text: 'Ketik minimal 2 karakter untuk mencari. Filter kategori, wilayah, dan status tetap diterapkan.' })
     : el('p', { className: 'result-count', text: `Menampilkan ${result.items.length} dari ${products.length} destinasi` });
 
   const mapElementNode = el('div', { className: 'map', attrs: { id: 'peta', role: 'application', 'aria-label': 'Peta sebaran destinasi' } });
@@ -390,7 +482,7 @@ export function renderAboutPage(container, { appName }) {
   const cards = [
     ['Tujuan', 'Latihan analisis dan rekayasa web statis selama satu hari.'],
     ['Data contoh', '8 destinasi nonpribadi; koordinat dan info akses wajib diverifikasi lapangan.'],
-    ['Cara pakai', 'Cari, filter, simpan wishlist, centang checklist, dan kelola data lewat dashboard.'],
+    ['Cara pakai', 'Cari, filter kategori, simpan wishlist, centang checklist, dan pesan paket via WhatsApp.'],
     ['Teknologi', 'Vite, JavaScript vanilla, Leaflet.js, OpenStreetMap, dan localStorage.'],
   ].map(([title, body]) =>
     el('article', { className: 'info-card' }, [el('h2', { text: title }), el('p', { text: body })]),
@@ -422,6 +514,10 @@ export function renderDashboardPage(container, { products, summary, handlers }) 
           el('h3', { text: product.nama }),
           el('p', { className: 'card-meta', text: `${product.wilayahPulau} · ${product.provinsi}` }),
           el('p', { className: 'card-meta', text: `${product.statusPopularitas} · ${product.levelKeahlian}` }),
+          el('p', {
+            className: 'card-meta',
+            text: `${product.kategori || '-'} · ${formatRupiah(product.estimasiBiaya)} · ${product.statusAkses || '-'}`,
+          }),
         ]),
         el('div', { className: 'admin-actions' }, [
           el('button', {
@@ -567,13 +663,23 @@ export function openDetailModal(product, options = {}) {
           className: `status status--${product.statusPopularitas === 'Hidden Gem' ? 'hidden' : 'popular'}`,
           text: product.statusPopularitas,
         }),
+        el('span', { className: 'status status--kategori', text: product.kategori || '-' }),
         el('span', { className: 'status status--level', text: product.levelKeahlian }),
         product.unggulan ? el('span', { className: 'status status--featured', text: 'Unggulan' }) : null,
+        accessStatusBadge(product),
       ]),
     ]),
     el('div', { className: 'modal-body' }, [
       el('p', { text: product.deskripsi }),
       el('div', { className: 'detail-grid' }, [
+        el('div', {}, [
+          el('h3', { text: 'Kategori & estimasi biaya' }),
+          el('p', { text: `${product.kategori || '-'} · ${formatRupiah(product.estimasiBiaya)}` }),
+        ]),
+        el('div', {}, [
+          el('h3', { text: 'Status kuota/akses' }),
+          el('p', { text: product.statusAkses || 'Status tidak diketahui' }),
+        ]),
         el('div', {}, [el('h3', { text: 'Info akses' }), el('p', { text: product.infoAkses })]),
         el('div', {}, [el('h3', { text: 'Waktu terbaik' }), el('p', { text: product.waktuTerbaik })]),
         el('div', {}, [
@@ -613,6 +719,7 @@ export function openDetailModal(product, options = {}) {
       ]),
     ]),
     el('div', { className: 'modal-footer' }, [
+      createWhatsAppButton(product),
       wishlistButton,
       el('button', { className: 'button button--ghost', text: 'Tutup', attrs: { type: 'button' }, on: { click: () => close() } }),
     ]),

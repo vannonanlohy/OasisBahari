@@ -3,7 +3,14 @@
 import 'leaflet/dist/leaflet.css';
 import './style.css';
 
-import { APP_NAME, DEFAULT_UI_STATE, SORT_OPTIONS, selectProducts, getSummary } from './products.js';
+import {
+  APP_NAME,
+  DEFAULT_UI_STATE,
+  KATEGORI_BAHARI,
+  SORT_OPTIONS,
+  filterProducts,
+  getSummary,
+} from './products.js';
 import * as store from './store.js';
 import {
   createShell,
@@ -23,10 +30,12 @@ let uiState = readStateFromUrl();
 function readStateFromUrl() {
   const params = new URLSearchParams(location.search);
   const sort = params.get('sort');
+  const kategori = params.get('kategori');
   return {
     q: params.get('q') || DEFAULT_UI_STATE.q,
     wilayah: params.get('wilayah') || DEFAULT_UI_STATE.wilayah,
     status: params.get('status') || DEFAULT_UI_STATE.status,
+    kategori: KATEGORI_BAHARI.includes(kategori) ? kategori : DEFAULT_UI_STATE.kategori,
     sort: SORT_OPTIONS.some((option) => option.value === sort) ? sort : DEFAULT_UI_STATE.sort,
   };
 }
@@ -95,7 +104,7 @@ const handlers = {
 
 function renderHomePage() {
   const products = store.getProducts();
-  const result = selectProducts(products, uiState);
+  const result = filterProducts(products, uiState);
   const wishlistIds = new Set(store.getWishlist().map((entry) => entry.destinationId));
   renderHome(shell.main, {
     products,

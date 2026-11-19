@@ -501,6 +501,7 @@ select {
 }
 
 .card-media {
+  position: relative;
   aspect-ratio: 16 / 9;
 }
 
@@ -543,8 +544,40 @@ select {
 }
 
 .status--featured,
-.status--level {
+.status--level,
+.status--kategori {
   color: var(--biru-laut);
+  background: var(--biru-muda);
+}
+
+.status-akses {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.status-akses--tersedia {
+  color: var(--sukses);
+  background: #e6f4ec;
+}
+
+.status-akses--terbatas {
+  color: #8a5a00;
+  background: #fff2d6;
+}
+
+.status-akses--penuh,
+.status-akses--tidak-tersedia {
+  color: var(--bahaya);
+  background: #fdeceb;
+}
+
+.status-akses--netral {
+  color: var(--teks-sekunder);
   background: var(--biru-muda);
 }
 
@@ -576,10 +609,60 @@ select {
   background: var(--tosca);
 }
 
-.card-body .icon-button {
+.card-media .icon-button {
   position: absolute;
-  right: 16px;
-  bottom: 16px;
+  top: 12px;
+  right: 12px;
+  z-index: 2;
+  box-shadow: 0 2px 6px rgba(11, 61, 90, 0.18);
+}
+
+.card-price {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--garis);
+}
+
+.card-price span {
+  color: var(--teks-sekunder);
+  font-size: 13px;
+}
+
+.card-price strong {
+  color: var(--biru-laut);
+  font-size: 15px;
+  white-space: nowrap;
+}
+
+.card-actions {
+  display: flex;
+  margin-top: 12px;
+}
+
+.card-actions .button {
+  width: 100%;
+}
+
+.button--whatsapp {
+  color: #fff;
+  background: var(--tosca);
+}
+
+.button--whatsapp:hover {
+  background: var(--tosca-gelap);
+}
+
+.button--whatsapp.is-disabled,
+.button--whatsapp.is-disabled:hover {
+  color: var(--teks-sekunder);
+  background: #e2ecee;
+  border-color: var(--garis);
+  cursor: not-allowed;
+  box-shadow: none;
 }
 
 .empty-state {
@@ -916,7 +999,7 @@ select {
     position: sticky;
     top: 72px;
     z-index: 400;
-    grid-template-columns: minmax(0, 1.4fr) repeat(3, minmax(0, 1fr)) auto;
+    grid-template-columns: minmax(0, 1.4fr) repeat(4, minmax(0, 1fr)) auto;
     background: rgba(255, 252, 245, 0.96);
     border-bottom: 1px solid var(--garis);
   }
