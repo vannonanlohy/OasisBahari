@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" role="img" aria-label="Ilustrasi Nusa Lembongan">
+  <defs><linearGradient id="s" x2="0" y2="1"><stop stop-color="#b9e0e8"/><stop offset="1" stop-color="#edf8f3"/></linearGradient><linearGradient id="l" x2="0" y2="1"><stop stop-color="#1a7f95"/><stop offset="1" stop-color="#08435a"/></linearGradient></defs>
+  <rect width="640" height="360" fill="url(#s)"/><circle cx="134" cy="80" r="34" fill="#ffebb6"/>
+  <path d="M0 224Q160 194 320 224T640 224V360H0Z" fill="url(#l)"/>
+  <path d="M404 224 470 146 536 224Z" fill="#4b7a5b"/><path d="M436 224 470 166 506 224Z" fill="#35634a"/>
+  <path d="M0 274Q160 248 320 274T640 274" fill="none" stroke="#d9f0ec" stroke-width="5" opacity=".6"/>
+  <path d="M0 324Q160 300 320 324T640 324" fill="none" stroke="#d9f0ec" stroke-width="4" opacity=".4"/>
+</svg>

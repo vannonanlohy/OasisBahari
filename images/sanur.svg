@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" role="img" aria-label="Ilustrasi Sanur">
+  <defs><linearGradient id="s" x2="0" y2="1"><stop stop-color="#9adce6"/><stop offset="1" stop-color="#e8f8f6"/></linearGradient><linearGradient id="l" x2="0" y2="1"><stop stop-color="#238ba0"/><stop offset="1" stop-color="#0b5168"/></linearGradient></defs>
+  <rect width="640" height="360" fill="url(#s)"/><circle cx="512" cy="76" r="32" fill="#ffe9ae"/>
+  <path d="M0 218Q160 186 320 218T640 218V360H0Z" fill="url(#l)"/>
+  <g fill="#4b7c5c"><rect x="76" y="176" width="8" height="42"/><rect x="92" y="164" width="8" height="54"/><rect x="108" y="172" width="8" height="46"/></g>
+  <path d="M0 268Q160 244 320 268T640 268" fill="none" stroke="#d6f1ee" stroke-width="5" opacity=".6"/>
+  <path d="M0 318Q160 296 320 318T640 318" fill="none" stroke="#d6f1ee" stroke-width="4" opacity=".4"/>
+</svg>

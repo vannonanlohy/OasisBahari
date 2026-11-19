@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" role="img" aria-label="Ilustrasi Padang Padang">
+  <defs><linearGradient id="s" x2="0" y2="1"><stop stop-color="#f3cfa8"/><stop offset="1" stop-color="#ffebd0"/></linearGradient><linearGradient id="l" x2="0" y2="1"><stop stop-color="#1c87a0"/><stop offset="1" stop-color="#0a4c63"/></linearGradient></defs>
+  <rect width="640" height="360" fill="url(#s)"/><circle cx="520" cy="82" r="34" fill="#ffe3a0"/>
+  <path d="M0 230Q160 200 320 230T640 230V360H0Z" fill="url(#l)"/>
+  <path d="M70 230 154 122 238 230Z" fill="#8b7358"/><path d="M402 230 486 128 570 230Z" fill="#8b7358"/>
+  <path d="M0 278Q160 252 320 278T640 278" fill="none" stroke="#e4f2ec" stroke-width="5" opacity=".6"/>
+  <path d="M0 326Q160 302 320 326T640 326" fill="none" stroke="#e4f2ec" stroke-width="4" opacity=".4"/>
+</svg>

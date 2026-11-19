@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" role="img" aria-label="Ilustrasi Blue Lagoon">
+  <defs><linearGradient id="s" x2="0" y2="1"><stop stop-color="#a5dbea"/><stop offset="1" stop-color="#e8f8fa"/></linearGradient><linearGradient id="l" x2="0" y2="1"><stop stop-color="#178fb0"/><stop offset="1" stop-color="#06465f"/></linearGradient></defs>
+  <rect width="640" height="360" fill="url(#s)"/><circle cx="530" cy="78" r="32" fill="#fff1bd"/>
+  <path d="M0 214Q160 180 320 214T640 214V360H0Z" fill="url(#l)"/>
+  <path d="M214 214 292 136 370 214Z" fill="#3f7357"/><path d="M246 214 292 154 338 214Z" fill="#2d5943"/>
+  <path d="M0 264Q160 238 320 264T640 264" fill="none" stroke="#c8f0f4" stroke-width="5" opacity=".7"/>
+  <path d="M0 314Q160 292 320 314T640 314" fill="none" stroke="#c8f0f4" stroke-width="4" opacity=".45"/>
+</svg>

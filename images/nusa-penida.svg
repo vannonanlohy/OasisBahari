@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" role="img" aria-label="Ilustrasi Nusa Penida">
+  <defs><linearGradient id="s" x2="0" y2="1"><stop stop-color="#f7c9a6"/><stop offset="1" stop-color="#ffe9cf"/></linearGradient><linearGradient id="l" x2="0" y2="1"><stop stop-color="#1a7f9a"/><stop offset="1" stop-color="#0a4760"/></linearGradient></defs>
+  <rect width="640" height="360" fill="url(#s)"/><circle cx="126" cy="86" r="38" fill="#ffd98a"/>
+  <path d="M0 226Q160 196 320 226T640 226V360H0Z" fill="url(#l)"/>
+  <path d="M300 226 388 118 476 226Z" fill="#a06b4f"/><path d="M336 226 388 146 440 226Z" fill="#80513e"/>
+  <path d="M0 274Q160 248 320 274T640 274" fill="none" stroke="#dff3f2" stroke-width="5" opacity=".6"/>
+  <path d="M0 322Q160 300 320 322T640 322" fill="none" stroke="#dff3f2" stroke-width="4" opacity=".4"/>
+</svg>

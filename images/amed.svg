@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" role="img" aria-label="Ilustrasi Amed">
+  <defs><linearGradient id="s" x2="0" y2="1"><stop stop-color="#f6d5b6"/><stop offset="1" stop-color="#fdeede"/></linearGradient><linearGradient id="l" x2="0" y2="1"><stop stop-color="#1b8297"/><stop offset="1" stop-color="#0a4a5f"/></linearGradient></defs>
+  <rect width="640" height="360" fill="url(#s)"/><circle cx="150" cy="82" r="34" fill="#ffe0a0"/>
+  <path d="M190 206 320 88 450 206Z" fill="#6d7f6a"/><path d="M250 206 320 126 390 206Z" fill="#586e58"/>
+  <path d="M0 222Q160 194 320 222T640 222V360H0Z" fill="url(#l)"/>
+  <path d="M0 272Q160 248 320 272T640 272" fill="none" stroke="#def1ee" stroke-width="5" opacity=".6"/>
+  <path d="M0 322Q160 300 320 322T640 322" fill="none" stroke="#def1ee" stroke-width="4" opacity=".4"/>
+</svg>

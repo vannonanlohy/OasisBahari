@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" role="img" aria-label="Ilustrasi Tulamben">
+  <defs><linearGradient id="s" x2="0" y2="1"><stop stop-color="#a7d8e8"/><stop offset="1" stop-color="#eaf7f8"/></linearGradient><linearGradient id="l" x2="0" y2="1"><stop stop-color="#14718c"/><stop offset="1" stop-color="#05374d"/></linearGradient></defs>
+  <rect width="640" height="360" fill="url(#s)"/><circle cx="540" cy="80" r="32" fill="#fff0b8"/>
+  <path d="M0 220Q160 188 320 220T640 220V360H0Z" fill="url(#l)"/>
+  <path d="M210 276 Q300 250 392 274 L410 292 Q300 276 196 296Z" fill="#314b56" opacity=".8"/>
+  <path d="M0 270Q160 242 320 270T640 270" fill="none" stroke="#c9edf1" stroke-width="5" opacity=".6"/>
+  <path d="M0 320Q160 296 320 320T640 320" fill="none" stroke="#c9edf1" stroke-width="4" opacity=".4"/>
+</svg>
